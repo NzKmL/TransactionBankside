@@ -1,0 +1,67 @@
+Do wykonania zadania mozesz uzyć wszystkich dostępnych
+pomocy - internet, ksiazki, chatgpt, gemini czy inne agenty ai.
+
+Aplikacja zewnętrzna oraz Baza danych Postgres 17 na GCP, sieć pozwala na ogolny ruch przychodzacy go gcp.
+Konfiguracja połączenia na podstawie propertisów. Na potrzeby zadania wszystkie komponenty dzialaja
+na jednej bazie danych
+Spring 4.0.0.
+java 17
+
+
+Pewna organizacja miedzynarodowa zdecydowala o wprowadzeniu
+do miedzynarodowego systemu bankowego funkcjonalnosci pozwalajacej
+klientowi na sprawdzenie statusu przelewu krajowego/miedzynarodowego itd
+w kazdym mozliwym momencie.
+
+Zdecydowano że każdy przelew będzie miał nadany identyfikator, unikalny
+w całym systemie bankowym. Identyfikator ten będzie generowany przez
+bank klienta w momencie powstania przelewu.
+
+PYTANIE 1:
+Jak zapewniłbyś unikalność takiego klucza w całym systemie bankowym?
+
+Przez organizacje został stworzony system TransactionLog, do ktrego
+banki maja logowac informacje o statusie przelewu po unikalnym identyfikatorze.
+Api tego systemu zostało przedstawione w OpenApi TransactionLog. Api pozwala na
+zapis statusu do bazy, oraz pobranie najnowszego statusu p
+Logi mają informować o przyjęciu przelewu w danym banku do procesowania, o przekazaniu go
+do danego systemu, o zmianie danych na przelewie oraz o wielu innych. Dla ułatwienia zadania
+wszystkie mają 3 możliwe wartości enum Status oraz pole desctiption które zbiorczo "zastepuje"
+inne pola majace sie znajdować w log status przelewu.
+
+Pytanie 2:
+Jakie znasz sposoby tworzenia interfejsów na podstawie OpenApi?
+
+W Banku w ktorym pracujesz podjęto decyzje że zostanie stworzony system odpowiedzliany
+za rejestracje statusu przelewu w TransactionLog. System ten będzie działał jako
+pośrednik miedzy TransactionLog. Dziłanie w oparciu o REST. Po pośrednika może sie
+zgłaszać wiele systemów bankowych realizujących przelew w celu informacji o jego statusie.
+
+W projekcie masz wersje prototypową tego systemu. Stworzony został model, i podstawowe
+wersje serwisów kontrollerów i repository.
+
+Niestety w procesie budowania obu tych systemów popełniono błędy.
+
+TransactionLog - system organizacji miedzynarodowej - jest niewydolny, i często zwraca timeout,
+oraz status przeciążenia serwera - w przypadku otrzymania tego statusu uznajemy ze status nie został
+zapisany w systemi i nalezy go ponowić.
+
+System bankowy TransactionBankside równiez ma olbrzymia wade - nie obsługuje tych wyjątków,
+i innych też, ogolnie zakłada że zawsze sie uda.
+
+ZADANIE 1:
+Twoim zadaniem jest napisanie komunikacji z API POST w sposob poprawny,
+Zapewniając poprawne statusowanie przelewów. Możesz zmieniać wszystko dopasowaywać,
+dotknięcie żadnego elementu nie jest zabronione.
+
+UWAGA: Kolejność statusów definiuje wyłącznie timestamp przychodzącego komunikatu.
+Zakładamy że TransactionLog jest idempotentny, ale nasze rozwiązanie nie może bazować na tym założeniu.
+Wiele systemów może informować o jednym przelewie.
+Twój pośrednik może pracować w wielu instancjach, ale wszystkie te instancje korzystają z jednej bazy danych
+Ze względu na ogranioczony czas skup sie na najistotniejszym kodzie.
+
+ZADANIE 2:
+Zadanie polega na zaproponowaniu obsługi metody GET pobrania statusu. Zakładamy że wyłącznie
+TransactionLog jest źródłem wiedzy o aktualnym statusie.
+
+TransactionBankSideController -> TransactionLogService -> TransactionLogSenderService

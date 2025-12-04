@@ -1,0 +1,202 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Transaction Log API",
+    "description": "API for managing transaction logs",
+    "version": "1.0"
+  },
+  "servers": [
+    {
+      "url": "http://34.116.252.176:8080",
+      "description": "Generated server url"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Transaction Log",
+      "description": "Operacje związane z logami transakcji"
+    }
+  ],
+  "paths": {
+    "/api/transactions/transactionlog": {
+      "get": {
+        "tags": [
+          "Transaction Log"
+        ],
+        "summary": "Pobierz najnowszą transakcję",
+        "description": "Zwraca najnowszą transakcję dla podanego id",
+        "operationId": "getLogs",
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Nieprawidłowe żądanie",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetails"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Przekroczono czas oczekiwania na odpowiedź",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Znaleziono transakcję",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionLogDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Serwer jest przeciążony",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nie znaleziono transakcji",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Transaction Log"
+        ],
+        "summary": "Zapisz log transakcji",
+        "description": "Zapisuje nowy log transakcji w systemie",
+        "operationId": "saveLog",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionLogDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Zapisano transakcję",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionLogDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nieprawidłowe żądanie",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetails"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Przekroczono czas oczekiwania na odpowiedź",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Serwer jest przeciążony",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TransactionLogDTO": {
+        "required": [
+          "description",
+          "status",
+          "timestamp",
+          "transactionId"
+        ],
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "INITIALIZED",
+              "PROCESSING",
+              "COMPLETED"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorDetails": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
