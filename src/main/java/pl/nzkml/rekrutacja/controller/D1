@@ -1,0 +1,119 @@
+Pytanie 1: @PathVariable vs @PathParam
+Poprawna odpowiedź: 2. @PathVariable("id").
+
+Dyskusja:
+
+@PathParam pochodzi z JAX-RS (standard Java EE/Jakarta EE), a nie ze Springa. Choć da się je ożenić, w Spring Boot natywnym rozwiązaniem jest @PathVariable.
+
+Warto zapytać: "A co jeśli nazwa zmiennej w metodzie jest taka sama jak w URL (np. Long id)?" -> Odpowiedź: Można pominąć ("id") w nowszych wersjach Springa (jeśli kompilujemy z -parameters).
+
+Pytanie 2: @Component vs @Configuration (Lite Mode vs Full Mode)
+To jest świetne pytanie sprawdzające wiedzę o tym, jak Spring zarządza singletonami.
+
+Poprawna odpowiedź:
+
+@Configuration (Full Mode): Spring używa CGLIB, żeby stworzyć proxy dla tej klasy. Kiedy metoda txManager() woła dataSource(), proxy przechwytuje wywołanie i sprawdza, czy bean dataSource już istnieje w kontenerze. Jeśli tak – zwraca go. Wynik: TransactionManager i reszta aplikacji korzystają z tego samego obiektu DataSource.
+
+@Component (Lite Mode): Proxy CGLIB nie jest tworzone dla metod. Wywołanie dataSource() wewnątrz txManager() zadziała jak zwykłe wywołanie metody w Javie – stworzy nową instancję new DataSource(). Wynik: Masz dwa różne DataSource (jeden w kontenerze, drugi wewnątrz managera transakcji), co zazwyczaj jest błędem (wycieki połączeń, brak spójności).
+
+Pytanie 3: @Transient
+(Omówione wcześniej – podtrzymuję, że warto dopytać o DTO).
+
+Pytanie 4: @Autowired i @Inject
+Czy @Autowired jest potrzebny? Nie, w Springu od wersji 4.3 przy jednym konstruktorze adnotacja jest zbędna.
+
+@Autowired vs @Inject:
+
+@Autowired: Adnotacja Springowa.
+
+@Inject: Standard Javy (JSR-330, CDI).
+
+Kiedy użyć @Inject? Gdy piszemy bibliotekę, która ma być niezależna od frameworka (ma działać w Springu, Guice, CDI) lub gdy zależy nam na przenośności kodu. W typowym projekcie Spring Boot @Autowired (lub brak adnotacji + Lombok) jest standardem.
+
+Red Flag w kodzie: @Getter i @Setter na klasie @Service. Serwisy powinny być bezstanowe (stateless). Po co nam setter do serwisu wstrzykiwanego przez konstruktor? To sugeruje, że ktoś może chcieć podmienić zależność w trakcie działania aplikacji, co jest bardzo złym pomysłem (brak bezpieczeństwa wątkowego).
+
+Pytanie 5: Pułapka @Async (Self-invocation)
+Co jest źle? Wywołanie sendConfirmationEmail następuje wewnątrz metody createOrder przy użyciu this (niejawnie).
+
+Efekt: Omijamy proxy Springa. Adnotacja @Async nie zadziała. Mail wyśle się synchronicznie w głównym wątku.
+
+Skutek biznesowy: Użytkownik czeka 5 sekund (symulacja sleep) na odpowiedź z serwera, mimo że miało być "w tle".
+
+Naprawa: Wydzielić mailer do osobnego beana (EmailService) i go wstrzyknąć, lub (brzydziej) wstrzyknąć samego siebie (@Lazy).
+
+Pytanie 6: SimpleAsyncTaskExecutor
+Działanie: To domyślny TaskExecutor, jeśli nie zdefiniujesz puli. Nie pooluje wątków! Dla każdego zadania tworzy nowy wątek (new Thread()), a po wykonaniu go ubija.
+
+Ryzyko: Przy dużym ruchu (np. te 100 req/sec) zarżniemy system operacyjny tworzeniem tysięcy wątków (context switching). To "nieprodukcyjne" rozwiązanie.
+
+Pytanie 7: Kolejność w ThreadPoolExecutor
+To pytanie oddziela midów od seniorów. Większość ludzi myśli, że pula rośnie do maxPoolSize, a potem kolejkują. Jest odwrotnie!
+
+Zadania wypełniają corePoolSize (5).
+
+Kolejne zadania trafiają do kolejki (queueCapacity).
+
+Dopiero gdy kolejka się przepełni, tworzone są nowe wątki aż do maxPoolSize.
+
+Analiza Twojej konfiguracji:
+
+Kolejka = 5,000,000 (ogromna).
+
+Ryzyko: Pula nigdy nie wyjdzie poza 5 wątków (core), bo bardzo trudno zapełnić kolejkę 5 milionami zadań w pamięci. Zanim dobijemy do maxPoolSize (1500), aplikacja prawdopodobnie wywali się z Out Of Memory Error (przez kolejkę trzymającą obiekty). Zadania będą "wisiały" w kolejce bardzo długo, obsługiwane tylko przez 5 wątków.
+
+Pytanie 8: Cache i Mutable Objects (Genialne pytanie!)
+To jest "killer question".
+
+Analiza:
+
+Domyślny Cache manager w Springu (ConcurrentMapCacheManager) przechowuje obiekty w pamięci (na stercie) jako referencje.
+
+getActiveFeatures zwraca listę.
+
+Admin pobiera listę -> lista trafia do Cache.
+
+Kod robi features.add("BETA_TOOLS"). Ponieważ lista w Cache i lista w zmiennej features to ten sam obiekt w pamięci (referencja), modyfikujemy zawartość Cache'a!
+
+Co zwróci drugie wywołanie (nie-admin)? Zwróci listę zawierającą "BETA_TOOLS". Wyciek danych/uprawnień!
+
+Ile razy zobaczymy log? Tylko raz (przy pierwszym strzale).
+
+Jak naprawić?
+
+Metoda powinna zwracać kopię listy (defensive copy).
+
+Użyć serializowanego cache (np. Redis), gdzie wyciągamy kopię danych (deserializacja), a nie referencję.
+
+TTL: Domyślnie w Springowej mapie cache żyje wiecznie (do restartu). Własny czas życia wymaga albo @Scheduled (czyszczenie) albo użycia biblioteki (Caffeine/EhCache/Redis).
+
+Pytanie 9: Transakcje a parallelStream
+Stan bazy:
+
+AuditLog - prawdopodobnie brak wpisu (rollback głównej transakcji przez wyjątek).
+
+TransactionEntity - Totalny chaos (ludzie zazwyczaj myślą, że nic się nie zapisze, albo wszystko).
+
+Wyjaśnienie: parallelStream korzysta z ForkJoinPool.commonPool(). Wątki w tej puli nie dziedziczą kontekstu transakcyjnego z głównego wątku (ThreadLocal).
+
+Efekt:
+
+Metoda transactionRepo.save wewnątrz streama wykonuje się w nowym wątku, bez transakcji (lub w nowej, krótkiej transakcji per rekord, zależnie od ustawień JPA).
+
+Jeśli baza jest w trybie autocommit: Rekordy przetworzone przed rzuceniem wyjątku w głównym wątku zostaną trwale zapisane.
+
+Rollback głównej metody (@Transactional) wycofa tylko to, co działo się w głównym wątku (AuditLog), ale nie ma władzy nad tym, co już zakomitowały wątki z parallelStream.
+
+Wniosek: Używanie parallelStream wewnątrz @Transactional do zapisu danych to błąd krytyczny naruszający ACID.
+
+Podsumowanie
+Zestaw jest bardzo dobry.
+
+Pytania 1-4: Rozgrzewka i higiena kodu.
+
+Pytania 5-7: Wiedza o wielowątkowości (krytyczna w high-performance).
+
+Pytanie 8: Bezpieczeństwo danych i działanie pamięci JVM.
+
+Pytanie 9: Świadomość granic transakcji.
+
+Sugestia: Przy pytaniu 8, jeśli kandydat nie zauważy problemu modyfikacji cache, możesz podpowiedzieć: "A co fizycznie przechowuje taka mapa w Javie? Kopię obiektu czy referencję do miejsca w pamięci?". To zazwyczaj otwiera oczy.
