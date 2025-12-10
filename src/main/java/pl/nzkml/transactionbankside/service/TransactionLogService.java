@@ -1,6 +1,7 @@
 package pl.nzkml.transactionbankside.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import pl.nzkml.transactionbankside.dto.TransactionLogDto;
 import pl.nzkml.transactionbankside.mapper.TransactionLogMapper;
@@ -18,7 +19,7 @@ public class TransactionLogService {
     private final TransactionLogRepository transactionLogRepository;
     private final TransactionLogMapper transactionLogMapper;
     private final TransactionLogSenderService transactionLogSenderService;
-
+    @CacheEvict
     public TransactionLogDto createLog(TransactionLogDto transactionLogDTO) {
         TransactionLog transactionLog = transactionLogMapper.toEntity(transactionLogDTO);
         transactionLog =  transactionLogRepository.save(transactionLog);
